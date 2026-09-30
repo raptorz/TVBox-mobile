@@ -45,11 +45,12 @@ jobs:
         with:
           python-version: '3.12'
 
+      # API 37 uses the SDK package ID android-37.0, while compileSdk stays 37.
       - name: Install Android SDK components
         shell: bash
         run: |
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-            'platforms;android-36' 'platforms;android-37' \
+            'platforms;android-36' 'platforms;android-37.0' \
             'build-tools;36.0.0' "build-tools;$ANDROID_BUILD_TOOLS" \
             'ndk;29.0.14206865' 'cmake;3.22.1'
 
