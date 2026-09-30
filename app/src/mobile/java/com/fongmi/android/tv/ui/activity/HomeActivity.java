@@ -59,6 +59,11 @@ public class HomeActivity extends BaseActivity implements NavigationBarView.OnIt
     private ActivityHomeBinding mBinding;
     private int orientation;
 
+    public static void openCache(android.content.Context context) {
+        context.startActivity(new Intent(context, HomeActivity.class).putExtra("offline", true)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP));
+    }
+
     @Override
     protected ViewBinding getBinding() {
         return mBinding = ActivityHomeBinding.inflate(getLayoutInflater());
@@ -82,7 +87,13 @@ public class HomeActivity extends BaseActivity implements NavigationBarView.OnIt
         mBinding.navigation.setOnItemSelectedListener(this);
         PermissionUtil.requestNotify(this);
         initFragment(savedInstanceState);
+        try {
+            androidx.media3.exoplayer.offline.DownloadService.start(this, com.fongmi.android.tv.offline.OfflineDownloadService.class);
+        } catch (IllegalStateException e) {
+            android.util.Log.w("Offline", "Download service will resume on the next user action", e);
+        }
         Updater.create().start(this);
+        if (getIntent().getBooleanExtra("offline", false)) checkAction(getIntent());
         initConfig();
     }
 
@@ -92,7 +103,10 @@ public class HomeActivity extends BaseActivity implements NavigationBarView.OnIt
     }
 
     private void checkAction(Intent intent) {
-        if (Intent.ACTION_SEND.equals(intent.getAction())) {
+        if (intent.getBooleanExtra("offline", false)) {
+            mBinding.navigation.setSelectedItemId(R.id.cache);
+            intent.removeExtra("offline");
+        } else if (Intent.ACTION_SEND.equals(intent.getAction())) {
             VideoActivity.push(this, intent.getStringExtra(Intent.EXTRA_TEXT));
         } else if (Intent.ACTION_VIEW.equals(intent.getAction()) && intent.getData() != null) {
             PermissionUtil.requestFile(this, allGranted -> checkType(intent));
@@ -118,6 +132,7 @@ public class HomeActivity extends BaseActivity implements NavigationBarView.OnIt
             case 3 -> SettingDanmakuFragment.newInstance();
             case 4 -> SettingPreloadFragment.newInstance();
             case 5 -> SettingDecodeFragment.newInstance();
+            case 6 -> new com.fongmi.android.tv.offline.OfflineFragment();
             default -> null;
         });
         if (savedInstanceState == null) change(0);
@@ -206,6 +221,7 @@ public class HomeActivity extends BaseActivity implements NavigationBarView.OnIt
 
     @Override
     public boolean onNavigationItemSelected(@NonNull MenuItem item) {
+        if (item.getItemId() == R.id.cache) return mManager.change(6);
         if (item.getItemId() == R.id.setting) return mManager.change(1);
         if (item.getItemId() == R.id.vod) return mManager.change(0);
         if (item.getItemId() == R.id.live) return openLive();
@@ -233,7 +249,7 @@ public class HomeActivity extends BaseActivity implements NavigationBarView.OnIt
             change(2);
         } else if (mManager.isVisible(3) || mManager.isVisible(2)) {
             change(1);
-        } else if (mManager.isVisible(1)) {
+        } else if (mManager.isVisible(1) || mManager.isVisible(6)) {
             change(0);
         } else if (mManager.canBack(0)) {
             if (PlaybackService.isRunning()) Util.moveToBackground(this);
@@ -243,12 +259,14 @@ public class HomeActivity extends BaseActivity implements NavigationBarView.OnIt
 
     @Override
     protected void onDestroy() {
-        LiveConfig.get().clear();
-        VodConfig.get().clear();
         BackupManager.backup();
-        OkHttp.get().clear();
-        Source.get().exit();
-        Server.get().stop();
+        if (!com.fongmi.android.tv.offline.OfflineRepository.keepSourceAlive()) {
+            LiveConfig.get().clear();
+            VodConfig.get().clear();
+            OkHttp.get().clear();
+            Source.get().exit();
+            Server.get().stop();
+        }
         super.onDestroy();
     }
 }

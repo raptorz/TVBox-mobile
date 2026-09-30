@@ -7,6 +7,7 @@
 
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <supports-screens
         android:anyDensity="true"
@@ -17,6 +18,11 @@
         android:xlargeScreens="true" />
 
     <application>
+        <activity android:name=".offline.OfflinePlayerActivity" android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation" />
+        <service android:name=".offline.OfflineDownloadService" android:exported="false" android:foregroundServiceType="dataSync">
+            <intent-filter><action android:name="androidx.media3.exoplayer.downloadService.action.RESTART" /></intent-filter>
+        </service>
+        <service android:name="androidx.media3.exoplayer.scheduler.PlatformScheduler$PlatformSchedulerService" android:exported="true" android:permission="android.permission.BIND_JOB_SERVICE" />
 
         <activity
             android:name=".ui.activity.HomeActivity"

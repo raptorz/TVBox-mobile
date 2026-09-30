@@ -1,0 +1,4 @@
+<resources>
+    <string name="offline_title">缓存</string>
+    <string name="offline_empty">暂无缓存。播放点播视频时，点击“缓存”即可添加当前集。</string>
+</resources>

@@ -40,6 +40,8 @@ android {
         }
     }
 
+    testOptions { unitTests.includeAndroidResources = true }
+
     buildFeatures {
         buildConfig = true
         viewBinding = true
@@ -89,6 +91,8 @@ android {
 AbiApkPackaging.configure(project, SingleArtifact.APK.INSTANCE)
 
 dependencies {
+    testMobileImplementation libs.junit
+    testMobileImplementation "org.robolectric:robolectric:4.16"
     // Media3 comes from the TVBox-media composite build, never stale local AARs.
     implementation fileTree(dir: "libs", include: ["*.aar"], exclude: ["lib-*.aar"])
     ['common', 'container', 'database', 'datasource', 'datasource-okhttp',

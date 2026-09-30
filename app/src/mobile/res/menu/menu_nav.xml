@@ -13,6 +13,8 @@
         android:title="@string/nav_live"
         android:visible="false" />
 
+    <item android:id="@+id/cache" android:icon="@drawable/ic_nav_cache" android:title="@string/offline_title" />
+
     <item
         android:id="@+id/setting"
         android:icon="@drawable/ic_nav_setting"

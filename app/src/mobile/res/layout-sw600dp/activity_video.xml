@@ -136,11 +136,24 @@
             android:textSize="14sp"
             tools:text="演員：FongMi" />
 
-        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/offlineButton"
+        android:layout_width="wrap_content"
+        android:layout_height="48dp"
+        android:layout_below="@id/video"
+        android:layout_marginStart="16dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:gravity="center"
+        android:background="?attr/selectableItemBackground"
+        android:textColor="@color/white"
+        android:text="@string/offline_title" />
+
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
             android:id="@+id/swipeLayout"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_below="@+id/video">
+            android:layout_below="@id/offlineButton">
 
             <androidx.core.widget.NestedScrollView
                 android:id="@+id/scroll"

@@ -134,6 +134,53 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     private Runnable mR3;
     private Runnable mR4;
     private History mHistory;
+    private com.fongmi.android.tv.offline.OfflineVideo offlineVideo;
+    private boolean offlineReady;
+
+    private void updateOfflineButton() {
+        var entry = offlineVideo == null ? null : com.fongmi.android.tv.offline.OfflineRepository.get().find(offlineVideo.id);
+        String label = entry == null ? "缓存" : entry.action();
+        mBinding.offlineButton.setText(label);
+        mBinding.control.action.offline.setText(label);
+        boolean enabled = offlineVideo != null && offlineReady && (entry == null || !entry.removing());
+        mBinding.offlineButton.setEnabled(enabled);
+        mBinding.control.action.offline.setEnabled(enabled);
+    }
+
+    private void onOffline() {
+        if (!offlineReady || offlineVideo == null || !hasPlaybackSource()) return;
+        var repo = com.fongmi.android.tv.offline.OfflineRepository.get();
+        var entry = repo.find(offlineVideo.id);
+        if (entry != null && entry.complete()) { HomeActivity.openCache(this); return; }
+        if (entry != null && entry.active()) { repo.toggle(entry.video()); return; }
+        if (player().getPlaybackState() != androidx.media3.common.Player.STATE_READY
+                && player().getPlaybackState() != androidx.media3.common.Player.STATE_ENDED) {
+            Notify.show("请等待视频开始播放后再缓存");
+            return;
+        }
+        androidx.media3.common.MediaItem item = player().getCurrentMediaItem();
+        String url = player().getUrl();
+        if (item == null || item.localConfiguration == null || player().isLive()
+                || item.localConfiguration.drmConfiguration != null || url == null
+                || !(url.startsWith("https://") || url.startsWith("http://"))) {
+            Notify.show("仅支持非 DRM 的 HTTP 点播视频缓存");
+            return;
+        }
+        offlineVideo.url = url;
+        offlineVideo.mime = item.localConfiguration.mimeType;
+        offlineVideo.headers = new java.util.HashMap<>(player().getHeaders());
+        for (var group : player().getCurrentTracks().getGroups()) {
+            if (group.getType() != androidx.media3.common.C.TRACK_TYPE_VIDEO) continue;
+            for (int i = 0; i < group.length; i++) if (group.isTrackSelected(i)) offlineVideo.videoHeight = group.getTrackFormat(i).height;
+        }
+        if (entry != null && !entry.active() && !entry.video().url.equals(url)) {
+            var replacement = com.fongmi.android.tv.offline.OfflineVideo.from(offlineVideo.data());
+            new com.google.android.material.dialog.MaterialAlertDialogBuilder(this).setTitle("播放地址已变化")
+                    .setMessage("无法确认新旧地址的数据完全相同。是否删除本集的旧缓存并从新地址重新缓存？")
+                    .setNegativeButton("保留旧缓存", null).setPositiveButton("重新缓存", (dialog, which) -> repo.restart(entry, replacement)).show();
+        } else repo.toggle(com.fongmi.android.tv.offline.OfflineVideo.from(offlineVideo.data()));
+    }
+
     private boolean fullscreen;
     private boolean useParse;
     private boolean rotate;
@@ -285,6 +332,9 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mBinding.swipeLayout.setRefreshing(true);
         saveHistory(true);
         mVod.reset();
+        offlineVideo = null;
+        offlineReady = false;
+        updateOfflineButton();
         setIntent(intent);
         updateNavigationKey();
         checkControl();
@@ -318,6 +368,10 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     @Override
     @SuppressLint("ClickableViewAccessibility")
     protected void initEvent() {
+        mBinding.offlineButton.setOnClickListener(v -> onOffline());
+        mBinding.control.action.offline.setOnClickListener(v -> onOffline());
+        com.fongmi.android.tv.offline.OfflineRepository.get().entries().observe(this, entries -> updateOfflineButton());
+        updateOfflineButton();
         mBinding.name.setOnClickListener(view -> onName());
         mBinding.more.setOnClickListener(view -> onMore());
         mBinding.actor.setOnClickListener(view -> onActor());
@@ -528,6 +582,8 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     @Override
     public void onPlaybackRequested() {
+        offlineReady = false;
+        updateOfflineButton();
         showProgress();
     }
 
@@ -568,6 +624,22 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     @Override
     public void startPlayback(Result result, boolean useParse, long startPositionMs, MediaMetadata metadata) {
+        offlineReady = false;
+        offlineVideo = null;
+        if (mHistory != null) {
+            offlineVideo = new com.fongmi.android.tv.offline.OfflineVideo();
+            offlineVideo.config = VodConfig.getUrl();
+            offlineVideo.site = getKey();
+            offlineVideo.vod = getId();
+            offlineVideo.title = mHistory.getVodName();
+            offlineVideo.cover = mHistory.getVodPic();
+            offlineVideo.episode = mHistory.getVodRemarks();
+            offlineVideo.episodeUrl = mHistory.getEpisodeUrl();
+            offlineVideo.line = mHistory.getVodFlag();
+            offlineVideo.quality = result.getUrl().n(result.getUrl().getPosition());
+            offlineVideo.identify();
+        }
+        updateOfflineButton();
         startPlayer(getHistoryKey(), result, useParse, getSite().getTimeout(), startPositionMs, metadata);
     }
 
@@ -1302,6 +1374,8 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     @Override
     protected void onPrepare() {
+        offlineReady = offlineVideo != null;
+        updateOfflineButton();
         setPlaybackMode();
         checkControl();
     }
@@ -1450,6 +1524,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private void setFullscreen(boolean fullscreen) {
+        mBinding.offlineButton.setVisibility(fullscreen ? View.GONE : View.VISIBLE);
         Util.toggleFullscreen(this, this.fullscreen = fullscreen);
     }
 
