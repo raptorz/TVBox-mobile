@@ -1,10 +1,6 @@
 package com.fongmi.gradle
 
-import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
-import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream
-import org.apache.commons.compress.archivers.zip.ZipFile
 import org.gradle.api.DefaultTask
-import org.gradle.api.GradleException
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.Property
@@ -33,7 +29,6 @@ interface FinalizeApkParameters extends WorkParameters {
     RegularFileProperty getApksignerJar()
     RegularFileProperty getJavaExecutable()
     RegularFileProperty getSigningStoreFile()
-    Property<String> getAbi()
     Property<String> getKeyAlias()
     Property<String> getStorePassword()
     Property<String> getKeyPassword()
@@ -50,72 +45,19 @@ abstract class FinalizeApkWorkAction implements WorkAction<FinalizeApkParameters
 
     @Override
     void execute() {
-        def abi = parameters.abi.get()
-        def removeAbi = AbiApkPackaging.otherAbi(abi)
-        if (!removeAbi) throw new GradleException("Unsupported ABI ${abi}")
         def inputApk = parameters.inputApk.get().asFile
         def outputApk = parameters.outputApk.get().asFile
-        def filtered = new File(outputApk.parentFile, "${outputApk.name}.filtered")
         def aligned = new File(outputApk.parentFile, "${outputApk.name}.aligned")
         def signed = new File(outputApk.parentFile, "${outputApk.name}.signed")
         try {
             outputApk.parentFile.mkdirs()
             Files.deleteIfExists(outputApk.toPath())
-            filterChaquopyAssets(inputApk, filtered, abi, removeAbi)
-            align(filtered, aligned)
+            align(inputApk, aligned)
             sign(aligned, signed)
             Files.move(signed.toPath(), outputApk.toPath(), StandardCopyOption.REPLACE_EXISTING)
         } finally {
-            Files.deleteIfExists(filtered.toPath())
             Files.deleteIfExists(aligned.toPath())
             Files.deleteIfExists(signed.toPath())
-        }
-    }
-
-    private static void filterChaquopyAssets(File inputApk, File filtered, String abi, String removeAbi) {
-        def removedRequirements = false
-        def removedStdlib = false
-        def removedNative = 0
-        def keptRequirements = false
-        def keptStdlib = false
-        def keptNative = 0
-        def inputZip = ZipFile.builder().setFile(inputApk).get()
-        try {
-            def outputZip = new ZipArchiveOutputStream(filtered)
-            try {
-                def entries = inputZip.entries
-                while (entries.hasMoreElements()) {
-                    def entry = entries.nextElement()
-                    if (entry.name == "assets/chaquopy/requirements-${removeAbi}.imy") {
-                        removedRequirements = true
-                        continue
-                    }
-                    if (entry.name == "assets/chaquopy/stdlib-${removeAbi}.imy") {
-                        removedStdlib = true
-                        continue
-                    }
-                    if (entry.name.startsWith("assets/chaquopy/bootstrap-native/${removeAbi}/")) {
-                        removedNative++
-                        continue
-                    }
-                    if (entry.name == "assets/chaquopy/requirements-${abi}.imy") keptRequirements = true
-                    if (entry.name == "assets/chaquopy/stdlib-${abi}.imy") keptStdlib = true
-                    if (entry.name.startsWith("assets/chaquopy/bootstrap-native/${abi}/")) keptNative++
-                    def rawInput = inputZip.getRawInputStream(entry)
-                    try {
-                        outputZip.addRawArchiveEntry(new ZipArchiveEntry(entry), rawInput)
-                    } finally {
-                        rawInput.close()
-                    }
-                }
-            } finally {
-                outputZip.close()
-            }
-        } finally {
-            inputZip.close()
-        }
-        if (!removedRequirements || !removedStdlib || removedNative == 0 || !keptRequirements || !keptStdlib || keptNative == 0) {
-            throw new GradleException("Incomplete Chaquopy ABI assets for ${abi} in ${inputApk.name}")
         }
     }
 
@@ -187,8 +129,6 @@ abstract class FinalizeApksTask extends DefaultTask {
     @TaskAction
     void finalizeApks() {
         transformationRequest.get().submit(this, workerExecutor.noIsolation(), FinalizeApkWorkAction) { artifact, outputLocation, params ->
-            def abi = artifact.filters.find { it.filterType.name() == 'ABI' }?.identifier
-            if (!abi) throw new GradleException("No ABI filter for ${artifact.outputFile}")
             def inputFile = new File(artifact.outputFile)
             params.inputApk.set(inputFile)
             params.outputApk.set(new File(outputLocation.asFile, inputFile.name))
@@ -196,7 +136,6 @@ abstract class FinalizeApksTask extends DefaultTask {
             params.apksignerJar.set(apksignerJar)
             params.javaExecutable.set(javaExecutable)
             params.signingStoreFile.set(signingStoreFile)
-            params.abi.set(abi)
             params.keyAlias.set(keyAlias)
             params.storePassword.set(storePassword)
             params.keyPassword.set(keyPassword)

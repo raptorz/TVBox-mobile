@@ -1,4 +1,5 @@
 pluginManagement {
+    includeBuild('TVBox-media/build-logic-settings')
     repositories {
         gradlePluginPortal()
         mavenCentral()
@@ -7,8 +8,12 @@ pluginManagement {
 }
 
 plugins {
+    id 'gradlebuild.media3-settings-logic'
     id "org.gradle.toolchains.foojay-resolver-convention" version "1.0.0"
 }
+
+// Resolve Media3 coordinates exclusively from our local fork.
+includeMedia3.execute(file('TVBox-media'))
 
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)

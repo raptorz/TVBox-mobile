@@ -9,5 +9,4 @@ repositories {
 dependencies {
     implementation gradleApi()
     implementation localGroovy()
-    implementation libs.commons.compress
 }

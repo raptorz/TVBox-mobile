@@ -85,10 +85,6 @@ public class FolderFragment extends BaseFragment {
         Optional.ofNullable(getChild()).ifPresent(TypeFragment::onRefresh);
     }
 
-    public boolean moveToTop() {
-        return Optional.ofNullable(getChild()).map(TypeFragment::moveToTop).orElse(false);
-    }
-
     public boolean canBack() {
         return getChildFragmentManager().getBackStackEntryCount() > 0;
     }

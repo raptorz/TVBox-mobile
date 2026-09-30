@@ -508,7 +508,7 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
     }
 
     @Override
-    public void onDanmakuSourceChanged(@Nullable Uri uri) {
+    public void onDanmakuSourceChanged(Uri uri) {
         playerCallbacks.forEach(callback -> callback.onDanmakuSourceChanged(uri));
     }
 
@@ -609,7 +609,7 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
         default void onPlayerRebuild(Player player) {
         }
 
-        default void onDanmakuSourceChanged(@Nullable Uri uri) {
+        default void onDanmakuSourceChanged(Uri uri) {
         }
 
         default void onDanmakuConfigChanged(DanmakuConfig config) {

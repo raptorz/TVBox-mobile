@@ -1,21 +1,17 @@
 package com.fongmi.android.tv.player.mpv;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.media3.common.MimeTypes;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
-import androidx.media3.common.TrackSelectionOverride;
 import androidx.media3.common.Tracks;
 import androidx.media3.mpvplayer.MpvPlayer;
 
 import com.fongmi.android.tv.bean.Sub;
 import com.fongmi.android.tv.player.effect.PlayerEffect;
 import com.fongmi.android.tv.player.engine.PlayerEngine;
-import com.fongmi.android.tv.player.engine.PlayerEngine.SecondarySubtitleState;
 import com.fongmi.android.tv.player.media.MediaItemFactory;
 import com.fongmi.android.tv.player.media.PlaySpec;
-import com.fongmi.android.tv.setting.SubtitleSetting;
 
 public class MpvPlayerEngine implements PlayerEngine, Player.Listener {
 
@@ -30,7 +26,6 @@ public class MpvPlayerEngine implements PlayerEngine, Player.Listener {
         this.effect = new MpvPlayerEffect(player);
         this.player.setAudioOutputListener(effect::applyAudioEffect);
         this.player.addListener(this);
-        applySecondarySubtitleMode(SubtitleSetting.getSecondaryMode());
     }
 
     public static boolean isAvailable() {
@@ -65,27 +60,16 @@ public class MpvPlayerEngine implements PlayerEngine, Player.Listener {
     }
 
     @Override
-    public void applySubtitleStyle() {
-        MpvUtil.applySubtitleStyle(player);
-    }
-
-    @Override
-    public SecondarySubtitleState getSecondarySubtitleState() {
-        return new SecondarySubtitleState(player.getPrimaryTextTrackSelectionOverride(), player.getSecondaryTextTrackSelectionOverride(), player.getSecondaryTextTrackSelectionOverrides(), player.isSecondaryTextTrackSuppressed());
-    }
-
-    @Override
-    public void setSecondarySubtitleSelection(@Nullable TrackSelectionOverride selection) {
-        int mode = SubtitleSetting.getSecondaryMode();
-        applySecondarySubtitleMode(mode);
-        if (mode != SubtitleSetting.SECONDARY_MODE_DEFAULT) player.setSecondaryTextTrackSelectionOverride(selection);
+    public void setSubtitleStyle() {
+        MpvUtil.setSubtitleStyle(player);
     }
 
     @Override
     public boolean addSubtitle(Sub sub) {
         if (sub == null || sub.isEmpty() || player.getCurrentMediaItem() == null) return false;
         if (player.getPlaybackState() == Player.STATE_IDLE || player.getPlaybackState() == Player.STATE_ENDED) return false;
-        return player.addSubtitle(MediaItemFactory.buildSubConfig(sub));
+        player.addSubtitle(MediaItemFactory.buildSubConfig(sub));
+        return true;
     }
 
     @Override
@@ -140,10 +124,5 @@ public class MpvPlayerEngine implements PlayerEngine, Player.Listener {
         spec.setFormat(MimeTypes.APPLICATION_M3U8);
         startInternal(player.getCurrentPosition());
         return ErrorAction.RECOVERED;
-    }
-
-    private void applySecondarySubtitleMode(int mode) {
-        if (mode == SubtitleSetting.SECONDARY_MODE_DEFAULT) player.resetSecondaryTextTrackSelection();
-        else player.setSecondaryTextTrackAutoSelectionEnabled(mode == SubtitleSetting.SECONDARY_MODE_AUTO);
     }
 }

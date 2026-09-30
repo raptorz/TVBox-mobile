@@ -8,7 +8,7 @@
 
 ## 開始使用
 
-1. 安裝適合裝置的 APK：`leanback` 為電視版，`mobile` 為手機版；依 Android 系統支援的 ABI 選擇 `arm64-v8a` 或 `armeabi-v7a`。最低需求為 Android 7.0（API 24）。
+1. 安裝適合裝置的 APK：`leanback` 為電視版，`mobile` 為手機版；僅支援 `arm64-v8a`（64 位元 Android 系統），不再提供 ARM32 版本。最低需求為 Android 7.0（API 24）。
 2. 在設定中加入自己的配置，格式與欄位見[配置範例](https://fongmi.github.io/TV/config/#examples)。
 3. 也可從系統檔案管理員開啟媒體檔案，或透過推送入口播放媒體網址。
 
@@ -38,8 +38,9 @@
 
 先準備以下環境與檔案：
 
-- **JDK 21、Android SDK、Python 3.10**。SDK 平台版本依 `compileSdk` 設定；Python 可用 `py -3.10 --version` 確認，找不到時在 [chaquo/build.gradle](chaquo/build.gradle) 的 Python 區塊設定 `buildPython`。
-- **配套 AAR**：放入 `app/libs/`。`lib-*.aar` 未納入 Git，單純 clone 不包含完整播放器依賴。
+- **JDK 21、Android SDK、Python 3.12**。SDK 平台版本依 `compileSdk` 設定；Python 可用 `py -3.12 --version` 確認，找不到時在 [chaquo/build.gradle](chaquo/build.gradle) 的 Python 區塊設定 `buildPython`。
+- **Media3 原始碼**：在專案根目錄執行 `git clone https://github.com/raptorz/TVBox-media.git TVBox-media`（已有目錄則不必重複 clone）。Gradle 以 composite build 編譯此目錄；`app/libs/lib-*.aar` 會被排除，不再作為播放器依賴。其他協定模組 AAR 仍由 `app/libs/` 載入。
+- **原生建置工具**：FFmpeg JNI 由 media 原始碼編譯，需安裝該模組指定的 Android NDK（目前 `29.0.14206865`）及 CMake（`3.21.0` 以上）；media 的 `local.properties` 也需設定 `sdk.dir`。mpv／FFmpeg 等預編譯原生庫由 media 倉庫提供。
 - **自己的簽章檔與 `local.properties`**：在儲存庫根目錄建立下列設定，將所有範例值替換成自己的資料。
 
 ```properties
@@ -61,8 +62,14 @@ storePassword=your-keystore-password
 .\gradlew.bat :app:assembleMobileRelease
 ```
 
-APK 按 ABI 分包並輸出至 `Release/apk/`。簽章不同的 APK 不能直接覆蓋既有安裝。網站位於 `website/`，可獨立建置，不需編譯 Android App。
+APK 僅包含 ARM64，輸出至 `Release/apk/mobile-arm64_v8a.apk`、`Release/apk/leanback-arm64_v8a.apk`；App Bundle 也限制為 ARM64。簽章不同的 APK 不能直接覆蓋既有安裝。網站位於 `website/`，可獨立建置，不需編譯 Android App。
 
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=FongMi/TV&type=Date)](https://www.star-history.com/#FongMi/TV&Date)
+
+## Python 相容性驗證
+
+`chaquo/src/main/python/ujson.py` 使用標準庫實作 ujson 5.x 常用介面，支援緊湊輸出、HTML／斜線轉義、bytes 選項與檔案讀寫；未知或已移除的參數會報錯。浮點數的字串格式及自訂 `__json__` hook 不保證與原生 ujson 一致。
+
+執行 `python3.12 -B -m unittest discover -s chaquo/tests -v`；在獨立測試環境安裝 `ujson==5.11.0` 後，也會執行原生實作對照測試。

@@ -248,10 +248,6 @@ public class TypeFragment extends BaseFragment implements CustomScroller.Callbac
         getVideo();
     }
 
-    public boolean moveToTop() {
-        return mBinding != null && mBinding.recycler.moveToTop();
-    }
-
     @Override
     public void onItemClick(Vod item) {
         if (item.isAction()) {
@@ -293,6 +289,6 @@ public class TypeFragment extends BaseFragment implements CustomScroller.Callbac
     @Override
     public void setUserVisibleHint(boolean isVisibleToUser) {
         super.setUserVisibleHint(isVisibleToUser);
-        moveToTop();
+        if (mBinding != null) mBinding.recycler.moveToTop();
     }
 }

@@ -21,6 +21,7 @@ android {
         targetSdk libs.versions.targetSdk.get().toInteger()
         versionCode 563
         versionName "5.6.3"
+        ndk { abiFilters "arm64-v8a" }
         javaCompileOptions {
             annotationProcessorOptions {
                 arguments = ["room.schemaLocation": "$projectDir/schemas".toString(), "eventBusIndex": "com.fongmi.android.tv.event.EventIndex"]
@@ -66,6 +67,8 @@ android {
         exclude group: 'stax', module: 'stax-api'
         exclude group: 'xpp3', module: 'xpp3'
         exclude group: 'com.android.support'
+        // The app's mcxinyu RTMP fork supplies the same io.antmedia classes.
+        exclude group: 'io.antmedia', module: 'rtmp-client'
         resolutionStrategy {
             force libs.okhttp
         }
@@ -86,7 +89,15 @@ android {
 AbiApkPackaging.configure(project, SingleArtifact.APK.INSTANCE)
 
 dependencies {
-    implementation fileTree(dir: "libs", include: ["*.aar"])
+    // Media3 comes from the TVBox-media composite build, never stale local AARs.
+    implementation fileTree(dir: "libs", include: ["*.aar"], exclude: ["lib-*.aar"])
+    ['common', 'container', 'database', 'datasource', 'datasource-okhttp',
+     'datasource-rtmp', 'decoder', 'decoder-ffmpeg', 'decoder-mpegh', 'effect',
+     'exoplayer', 'exoplayer-dash', 'exoplayer-hls', 'exoplayer-rtsp',
+     'exoplayer-smoothstreaming', 'extractor', 'mpvplayer', 'session', 'ui',
+     'ui-danmaku'].each { module ->
+        implementation "androidx.media3:media3-${module}:1.11.0"
+    }
     implementation project(':catvod')
     implementation project(':chaquo')
     implementation project(':quickjs')

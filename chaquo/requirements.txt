@@ -1,5 +1,6 @@
+# ujson publishes no Python 3.12 wheel on the Chaquopy index, so
+# src/main/python/ujson.py provides a stdlib-json backed shim instead.
 lxml
-ujson
 pyquery
 requests
 cachetools

@@ -4,29 +4,13 @@ import org.gradle.api.Project
 
 class AbiApkPackaging {
 
-    private static final Map<String, String> ABI_PAIRS = ['arm64-v8a': 'armeabi-v7a', 'armeabi-v7a': 'arm64-v8a'].asImmutable()
-
     static void configure(Project project, Object apkArtifact) {
         def android = project.extensions.getByName('android')
         def components = project.extensions.getByName('androidComponents')
-        configureAbis(android)
         components.onVariants(components.selector().withBuildType('release')) { variant ->
             def device = configureOutputFileNames(variant)
             configureFinalizer(project, android, components, variant, apkArtifact)
-            configureReleaseExport(project, variant, device)
-        }
-    }
-
-    static String otherAbi(String abi) {
-        return ABI_PAIRS[abi]
-    }
-
-    private static void configureAbis(def android) {
-        android.splits.abi {
-            enable = true
-            reset()
-            include(*ABI_PAIRS.keySet().toList())
-            universalApk = false
+            configureReleaseExport(project, variant, device, apkArtifact)
         }
     }
 
@@ -34,8 +18,8 @@ class AbiApkPackaging {
         def flavors = variant.productFlavors.collectEntries { [(it.first): it.second] }
         def device = flavors['device'] ?: 'device'
         variant.outputs.each { output ->
-            def abi = output.filters.find { it.filterType.name() == 'ABI' }?.identifier?.replace('-', '_') ?: 'universal'
-            output.outputFileName.set("${device}-${abi}.apk")
+            // ABI filtering is configured in app.defaultConfig for both APK and AAB.
+            output.outputFileName.set("${device}-arm64_v8a.apk")
         }
         return device
     }
@@ -61,13 +45,14 @@ class AbiApkPackaging {
         }
     }
 
-    private static void configureReleaseExport(Project project, def variant, String device) {
+    private static void configureReleaseExport(Project project, def variant, String device, Object apkArtifact) {
         def taskName = "assemble${variant.name.capitalize()}"
-        def apkDirectory = project.layout.buildDirectory.dir("outputs/apk/${device}/release").get().asFile
+        def apkDirectory = variant.artifacts.get(apkArtifact)
         project.tasks.matching { it.name == taskName }.configureEach {
             doLast {
                 project.copy {
-                    from project.fileTree(dir: apkDirectory, include: "${device}-*.apk")
+                    from apkDirectory
+                    include "${device}-arm64_v8a.apk"
                     into project.rootProject.file('Release/apk')
                     eachFile { it.path = it.name }
                     includeEmptyDirs = false

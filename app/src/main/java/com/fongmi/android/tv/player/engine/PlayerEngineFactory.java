@@ -29,7 +29,7 @@ public final class PlayerEngineFactory {
     }
 
     public static boolean matches(PlayerEngine engine, PlaySpec spec) {
-        return engine != null && engine.getType() == resolve(spec) && !engine.needsRebuild();
+        return engine != null && engine.getType() == resolve(spec);
     }
 
     private static PlayerEngine.Type resolve(PlaySpec spec) {
