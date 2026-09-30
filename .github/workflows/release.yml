@@ -1,0 +1,160 @@
+name: Build signed Android Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      ANDROID_BUILD_TOOLS: '37.0.0'
+    steps:
+      - name: Checkout app
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Checkout pinned Media3 fork
+        uses: actions/checkout@v6
+        with:
+          repository: raptorz/TVBox-media
+          ref: dfe2081eb30535ff71dda63dd4715e9a739511e3
+          path: TVBox-media
+          persist-credentials: false
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install Android SDK components
+        shell: bash
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            'platforms;android-36' 'platforms;android-37' \
+            'build-tools;36.0.0' "build-tools;$ANDROID_BUILD_TOOLS" \
+            'ndk;29.0.14206865' 'cmake;3.22.1'
+
+      - name: Restore signing configuration
+        env:
+          SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        run: |
+          python .github/scripts/prepare-signing.py
+          keytool -list -keystore "$RUNNER_TEMP/tvbox-release.jks" \
+            -alias "$SIGNING_KEY_ALIAS" -storepass:env SIGNING_STORE_PASSWORD >/dev/null
+
+      - name: Run tests and build both ARM64 variants
+        run: |
+          python -B -m unittest discover -s chaquo/tests -v
+          ./gradlew :app:testMobileDebugUnitTest \
+            :app:assembleMobileRelease :app:assembleLeanbackRelease \
+            --no-daemon --console=plain --max-workers=2
+
+      - name: Verify APKs and create checksums
+        shell: bash
+        run: |
+          for device in mobile tv; do
+            apk="Release/apk/TVBox-$device-arm64_v8a.apk"
+            test -s "$apk"
+            "$ANDROID_HOME/build-tools/$ANDROID_BUILD_TOOLS/apksigner" verify "$apk"
+            "$ANDROID_HOME/build-tools/$ANDROID_BUILD_TOOLS/zipalign" -c -P 16 4 "$apk"
+          done
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          for apk in Path('Release/apk').glob('*.apk'):
+              with ZipFile(apk) as archive:
+                  abis = {name.split('/')[1] for name in archive.namelist()
+                          if name.startswith('lib/') and name.endswith('.so')}
+              if abis != {'arm64-v8a'}:
+                  raise SystemExit(f'Unexpected ABIs in {apk.name}: {abis}')
+          PY
+          cd Release/apk
+          sha256sum TVBox-mobile-arm64_v8a.apk TVBox-tv-arm64_v8a.apk > SHA256SUMS.txt
+
+      - name: Upload signed APKs
+        uses: actions/upload-artifact@v7
+        with:
+          name: tvbox-arm64-release-${{ github.run_number }}
+          path: |
+            Release/apk/TVBox-mobile-arm64_v8a.apk
+            Release/apk/TVBox-tv-arm64_v8a.apk
+            Release/apk/SHA256SUMS.txt
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+      - name: Clean up signing files
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          for path in (Path('local.properties'), Path('TVBox-media/local.properties'),
+                       Path(os.environ['RUNNER_TEMP']) / 'tvbox-release.jks'):
+              path.unlink(missing_ok=True)
+          PY
+
+  publish:
+    name: Publish GitHub Release
+    needs: build
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download verified APKs
+        uses: actions/download-artifact@v8
+        with:
+          name: tvbox-arm64-release-${{ github.run_number }}
+          path: release-assets
+
+      - name: Create and publish release
+        working-directory: release-assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          sha256sum --check SHA256SUMS.txt
+          assets=(TVBox-mobile-arm64_v8a.apk TVBox-tv-arm64_v8a.apk SHA256SUMS.txt)
+          for asset in "${assets[@]}"; do
+            test -s "$asset"
+          done
+          if is_draft=$(gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft'); then
+            if [[ "$is_draft" != 'true' ]]; then
+              echo "Release already published; keeping existing release assets."
+              exit 0
+            fi
+            # Resume a previously interrupted upload while the release is still a draft.
+            gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
+          else
+            gh release create "$RELEASE_TAG" "${assets[@]}" \
+              --verify-tag --title "$RELEASE_TAG" --generate-notes --draft
+          fi
+          # Only publish after all three assets have been uploaded successfully.
+          gh release edit "$RELEASE_TAG" --draft=false

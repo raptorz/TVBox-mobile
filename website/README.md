@@ -24,19 +24,11 @@ npm start
 
 不需要完整建置時，可選擇執行 `npm run typecheck` 快速檢查型別；此指令執行 `next typegen` 與 `tsc --noEmit`，不產生靜態網站輸出。
 
-## GitHub Pages
+## 靜態部署
 
-網站原始碼位於 `FongMi/TV` 的 `website/`，正式網址為 [影視TV 使用與開發指南](https://fongmi.github.io/TV/)。不需要另外建立網站儲存庫。
+本分支已移除 GitHub Pages 自動發布工作流，改為 Android 簽章建置。網站仍可按上面的步驟本機建置，並將 `out/` 部署到自己的靜態主機。
 
-1. 在 **Settings → Pages → Build and deployment → Source** 選擇 **GitHub Actions**。
-2. 將 `website/` 或 `.github/workflows/pages.yml` 的更新推送至 `fongmi`，或在 Actions 手動執行 **Publish website to GitHub Pages**。
-3. 流程在 `website/` 安裝依賴、執行 Lint、型別檢查與靜態建置，再發布 `website/out/`。
-
-網站輸出不含 Android 專案、`node_modules` 或本機環境檔；只修改 App 程式碼不會觸發網站發布。
-
-流程從 `actions/configure-pages` 取得正式網址，透過 `SITE_URL` 統一設定頁面路徑、Logo 與分享預覽圖，支援帳號首頁、專案子目錄及已在 Pages 設定的自訂網域。自訂網域仍須先完成 GitHub Pages 網域設定。
-
-本機建置不會自動推送或發布；推送文件更新前，請先確認差異只包含預期公開的內容。
+上游文件網站為 [影視TV 使用與開發指南](https://fongmi.github.io/TV/)。部署到其他網址時，請透過 `SITE_URL` 設定路徑。
 
 ### 指定部署網址
 
@@ -55,7 +47,6 @@ npm start
 - `app/`：頁面、共用元件、文件欄位及搜尋索引。
 - `app/globals.css`：樣式與響應式規則。
 - `public/`：SVG Logo、品牌預覽圖及 `.nojekyll`。
-- `../.github/workflows/pages.yml`：儲存庫根目錄的 GitHub Pages 建置與發布。
 - `app/local/page.tsx`、`app/local-api.ts`：由舊 `docs/LOCAL.md` 整合、核對原始碼後的本地 HTTP API 文件與範例。
 
 參考：[Next.js 靜態輸出](https://nextjs.org/docs/app/guides/static-exports)、[GitHub Pages 自訂流程](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)。

@@ -51,7 +51,7 @@ android {
         release {
             storeFile file(localProps['storeFile'])
             keyAlias localProps['keyAlias']
-            keyPassword localProps['storePassword']
+            keyPassword (localProps['keyPassword'] ?: localProps['storePassword'])
             storePassword localProps['storePassword']
         }
     }
