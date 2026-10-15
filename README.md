@@ -1,4 +1,22 @@
-# 影視TV
+# TVBox-mobile
+
+本项目基于[FongMi/TV](https://fongmi.github.io/TV/)，修改了以下内容：
+
+## Python 相容性驗證
+
+因为原项目为了兼容32位ARM，所以受限只能用Python 3.11及以下版本，这里放弃支持32位，只支持64位ARM，所以迁移到Python 3.12。
+
+`chaquo/src/main/python/ujson.py` 使用標準庫實作 ujson 5.x 常用介面，支援緊湊輸出、HTML／斜線轉義、bytes 選項與檔案讀寫；未知或已移除的參數會報錯。浮點數的字串格式及自訂 `__json__` hook 不保證與原生 ujson 一致。
+
+執行 `python3.12 -B -m unittest discover -s chaquo/tests -v`；在獨立測試環境安裝 `ujson==5.11.0` 後，也會執行原生實作對照測試。
+
+## 增加视频缓存功能
+
+可以将视频先缓存到本地，然后再看比较流畅，以免受资源网速影响观看体验。
+
+## 以下为原项目README
+
+----
 
 適用於 Android TV 與手機的影音應用程式，整合媒體瀏覽與播放體驗，並支援外部配置與 [CatVod](https://github.com/CatVodTVOfficial/CatVodTVJarLoader) Spider 介面擴充。
 
@@ -93,9 +111,3 @@ Linux 可用 `base64 -w 0 /path/to/release.jks` 取得編碼。雲端會暫時�
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=FongMi/TV&type=Date)](https://www.star-history.com/#FongMi/TV&Date)
-
-## Python 相容性驗證
-
-`chaquo/src/main/python/ujson.py` 使用標準庫實作 ujson 5.x 常用介面，支援緊湊輸出、HTML／斜線轉義、bytes 選項與檔案讀寫；未知或已移除的參數會報錯。浮點數的字串格式及自訂 `__json__` hook 不保證與原生 ujson 一致。
-
-執行 `python3.12 -B -m unittest discover -s chaquo/tests -v`；在獨立測試環境安裝 `ujson==5.11.0` 後，也會執行原生實作對照測試。
