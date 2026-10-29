@@ -8,16 +8,17 @@ class AbiApkPackaging {
         def android = project.extensions.getByName('android')
         def components = project.extensions.getByName('androidComponents')
         components.onVariants(components.selector().withBuildType('release')) { variant ->
-            def apkName = configureOutputFileNames(variant)
+            def apkName = configureOutputFileNames(project, variant)
             configureFinalizer(project, android, components, variant, apkArtifact)
             configureReleaseExport(project, variant, apkName, apkArtifact)
         }
     }
 
-    private static String configureOutputFileNames(def variant) {
+    private static String configureOutputFileNames(Project project, def variant) {
         def flavors = variant.productFlavors.collectEntries { [(it.first): it.second] }
         def device = flavors['device'] == 'leanback' ? 'tv' : (flavors['device'] ?: 'device')
-        def apkName = "TVBox-${device}-arm64_v8a.apk"
+        def abi = project.rootProject.ext.targetAbi.replace('-', '_')
+        def apkName = "TVBox-${device}-${abi}.apk"
         variant.outputs.each { output ->
             // ABI filtering is configured in app.defaultConfig for both APK and AAB.
             output.outputFileName.set(apkName)

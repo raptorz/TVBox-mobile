@@ -4,7 +4,7 @@
 
 ## Python 相容性驗證
 
-因为原项目为了兼容32位ARM，所以受限只能用Python 3.11及以下版本，这里放弃支持32位，只支持64位ARM，所以迁移到Python 3.12。
+ARM64 使用 Python 3.12；32 位 ARM 使用 Python 3.11，僅在雲端建置。本機預設仍為 ARM64，無需安裝 Python 3.11。
 
 `chaquo/src/main/python/ujson.py` 使用標準庫實作 ujson 5.x 常用介面，支援緊湊輸出、HTML／斜線轉義、bytes 選項與檔案讀寫；未知或已移除的參數會報錯。浮點數的字串格式及自訂 `__json__` hook 不保證與原生 ujson 一致。
 
@@ -26,7 +26,7 @@
 
 ## 開始使用
 
-1. 安裝適合裝置的 APK：`leanback` 為電視版，`mobile` 為手機版；僅支援 `arm64-v8a`（64 位元 Android 系統），不再提供 ARM32 版本。最低需求為 Android 7.0（API 24）。
+1. 安裝適合裝置的 APK：`leanback` 為電視版，`mobile` 為手機版；提供 `arm64-v8a`（64 位元 Android 系統）與 `armeabi-v7a`（32 位元 ARM 系統），請依系統支援的架構選擇。最低需求為 Android 7.0（API 24）。
 2. 在設定中加入自己的配置，格式與欄位見[配置範例](https://fongmi.github.io/TV/config/#examples)。
 3. 也可從系統檔案管理員開啟媒體檔案，或透過推送入口播放媒體網址。
 
@@ -81,7 +81,7 @@ keyPassword=your-private-key-password
 .\gradlew.bat :app:assembleMobileRelease
 ```
 
-APK 僅包含 ARM64，輸出至 `Release/apk/TVBox-mobile-arm64_v8a.apk`、`Release/apk/TVBox-tv-arm64_v8a.apk`；App Bundle 也限制為 ARM64。簽章不同的 APK 不能直接覆蓋既有安裝。網站位於 `website/`，可獨立建置，不需編譯 Android App。
+本機預設 APK 僅包含 ARM64，輸出至 `Release/apk/TVBox-mobile-arm64_v8a.apk`、`Release/apk/TVBox-tv-arm64_v8a.apk`；本機預設 App Bundle 也限制為 ARM64。簽章不同的 APK 不能直接覆蓋既有安裝。網站位於 `website/`，可獨立建置，不需編譯 Android App。
 
 ## GitHub Actions 簽章建置
 
@@ -100,11 +100,11 @@ Linux 可用 `base64 -w 0 /path/to/release.jks` 取得編碼。雲端會暫時�
 
 將工作流推送至預設分支後，在 **Actions → Build signed Android Release → Run workflow** 手動執行，或推送 `v*` 標籤觸發。一般分支 push 不會觸發簽章建置。
 
-工作流固定檢出 `raptorz/TVBox-media` 的 `dfe2081eb30535ff71dda63dd4715e9a739511e3`，安裝 Java 21、Python 3.12、SDK／NDK／CMake，執行 Python 相容性測試和 mobile 快取測試，再編譯 mobile 與 leanback Release。更新 media 時，需同步修改工作流中的 commit。
+工作流固定檢出 `raptorz/TVBox-media` 的 `dfe2081eb30535ff71dda63dd4715e9a739511e3`，透過獨立矩陣 job 安裝 Java 21、對應的 Python（ARM64 為 3.12，ARM32 為 3.11）、SDK／NDK／CMake，執行 Python 相容性測試和 mobile 快取測試，再編譯 mobile 與 leanback Release。建置時透過 `-PtargetAbi=arm64-v8a` 或 `-PtargetAbi=armeabi-v7a` 同時選擇 APK 架構和 Python 版本，未指定時預設 ARM64。本機無需安裝 Python 3.11；ARM32 由雲端建置。更新 media 時，需同步修改工作流中的 commit。
 
-執行成功後，從該次執行頁面的 **Artifacts** 下載 `tvbox-arm64-release-執行編號`，內含兩個已簽章 APK 和 `SHA256SUMS.txt`，保存 30 天。流程驗證 ARM64、APK 簽章及 16 KB ZIP 對齊。
+執行成功後，從該次執行頁面的 **Artifacts** 下載 `tvbox-arm64_v8a-release-執行編號` 與 `tvbox-armeabi_v7a-release-執行編號`，各含兩個已簽章 APK 和對應架構的校驗檔，保存 30 天。流程驗證各 APK 的目標架構、APK 簽章及 16 KB ZIP 對齊。
 
-推送 `v*` 標籤時，兩個版本建置及驗證成功後，會自動建立同名 **GitHub Release**、產生更新說明，並附上兩個 APK 與 `SHA256SUMS.txt`。附件完整上傳後才公開發布；重跑時可接續未完成的草稿，已公開的 Release 不會被覆寫。手動執行只上傳 Artifacts，不建立 Release。
+推送 `v*` 標籤時，兩種架構的 mobile／TV 共四個版本建置及驗證成功後，會自動建立同名 **GitHub Release**、產生更新說明，並附上四個 APK（`TVBox-mobile-arm64_v8a.apk`、`TVBox-tv-arm64_v8a.apk`、`TVBox-mobile-armeabi_v7a.apk`、`TVBox-tv-armeabi_v7a.apk`）與 `SHA256SUMS.txt`。附件完整上傳後才公開發布；重跑時可接續未完成的草稿，已公開的 Release 不會被覆寫。手動執行只上傳 Artifacts，不建立 Release。
 
 發布使用 GitHub 自動提供的 `GITHUB_TOKEN`，只在發布 job 授予 `contents: write`，不需額外設定 PAT。
 

@@ -4,6 +4,14 @@ plugins {
     alias libs.plugins.chaquo.python apply false
 }
 
+// Each build selects one ABI; local builds keep Python 3.12 / ARM64 by default.
+def selectedAbi = providers.gradleProperty('targetAbi').getOrElse('arm64-v8a')
+if (!(selectedAbi in ['arm64-v8a', 'armeabi-v7a'])) {
+    throw new GradleException("Unsupported targetAbi: ${selectedAbi}")
+}
+ext.targetAbi = selectedAbi
+ext.targetPython = selectedAbi == 'armeabi-v7a' ? '3.11' : '3.12'
+
 tasks.register('clean', Delete) {
     delete rootProject.layout.buildDirectory
 }

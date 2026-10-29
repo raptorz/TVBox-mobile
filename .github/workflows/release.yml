@@ -15,10 +15,23 @@ concurrency:
 
 jobs:
   build:
+    name: Build ${{ matrix.abi }} / Python ${{ matrix.python }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - abi: arm64-v8a
+            apk-abi: arm64_v8a
+            python: '3.12'
+          - abi: armeabi-v7a
+            apk-abi: armeabi_v7a
+            python: '3.11'
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
       ANDROID_BUILD_TOOLS: '37.0.0'
+      TARGET_ABI: ${{ matrix.abi }}
+      APK_ABI: ${{ matrix.apk-abi }}
     steps:
       - name: Checkout app
         uses: actions/checkout@v6
@@ -43,7 +56,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: '3.12'
+          python-version: ${{ matrix.python }}
 
       # API 37 uses the SDK package ID android-37.0, while compileSdk stays 37.
       - name: Install Android SDK components
@@ -65,10 +78,10 @@ jobs:
           keytool -list -keystore "$RUNNER_TEMP/tvbox-release.jks" \
             -alias "$SIGNING_KEY_ALIAS" -storepass:env SIGNING_STORE_PASSWORD >/dev/null
 
-      - name: Run tests and build both ARM64 variants
+      - name: Run tests and build mobile and TV variants
         run: |
           python -B -m unittest discover -s chaquo/tests -v
-          ./gradlew :app:testMobileDebugUnitTest \
+          ./gradlew -PtargetAbi="$TARGET_ABI" :app:testMobileDebugUnitTest \
             :app:assembleMobileRelease :app:assembleLeanbackRelease \
             --no-daemon --console=plain --max-workers=2
 
@@ -76,32 +89,33 @@ jobs:
         shell: bash
         run: |
           for device in mobile tv; do
-            apk="Release/apk/TVBox-$device-arm64_v8a.apk"
+            apk="Release/apk/TVBox-$device-$APK_ABI.apk"
             test -s "$apk"
             "$ANDROID_HOME/build-tools/$ANDROID_BUILD_TOOLS/apksigner" verify "$apk"
             "$ANDROID_HOME/build-tools/$ANDROID_BUILD_TOOLS/zipalign" -c -P 16 4 "$apk"
           done
           python - <<'PY'
+          import os
           from pathlib import Path
           from zipfile import ZipFile
           for apk in Path('Release/apk').glob('*.apk'):
               with ZipFile(apk) as archive:
                   abis = {name.split('/')[1] for name in archive.namelist()
                           if name.startswith('lib/') and name.endswith('.so')}
-              if abis != {'arm64-v8a'}:
+              if abis != {os.environ['TARGET_ABI']}:
                   raise SystemExit(f'Unexpected ABIs in {apk.name}: {abis}')
           PY
           cd Release/apk
-          sha256sum TVBox-mobile-arm64_v8a.apk TVBox-tv-arm64_v8a.apk > SHA256SUMS.txt
+          sha256sum "TVBox-mobile-$APK_ABI.apk" "TVBox-tv-$APK_ABI.apk" > "SHA256SUMS-$APK_ABI.txt"
 
       - name: Upload signed APKs
         uses: actions/upload-artifact@v7
         with:
-          name: tvbox-arm64-release-${{ github.run_number }}
+          name: tvbox-${{ matrix.apk-abi }}-release-${{ github.run_number }}
           path: |
-            Release/apk/TVBox-mobile-arm64_v8a.apk
-            Release/apk/TVBox-tv-arm64_v8a.apk
-            Release/apk/SHA256SUMS.txt
+            Release/apk/TVBox-mobile-${{ matrix.apk-abi }}.apk
+            Release/apk/TVBox-tv-${{ matrix.apk-abi }}.apk
+            Release/apk/SHA256SUMS-${{ matrix.apk-abi }}.txt
           if-no-files-found: error
           compression-level: 0
           retention-days: 30
@@ -130,7 +144,8 @@ jobs:
       - name: Download verified APKs
         uses: actions/download-artifact@v8
         with:
-          name: tvbox-arm64-release-${{ github.run_number }}
+          pattern: tvbox-*-release-${{ github.run_number }}
+          merge-multiple: true
           path: release-assets
 
       - name: Create and publish release
@@ -141,8 +156,10 @@ jobs:
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
+          cat SHA256SUMS-arm64_v8a.txt SHA256SUMS-armeabi_v7a.txt > SHA256SUMS.txt
           sha256sum --check SHA256SUMS.txt
-          assets=(TVBox-mobile-arm64_v8a.apk TVBox-tv-arm64_v8a.apk SHA256SUMS.txt)
+          assets=(TVBox-mobile-arm64_v8a.apk TVBox-tv-arm64_v8a.apk
+                  TVBox-mobile-armeabi_v7a.apk TVBox-tv-armeabi_v7a.apk SHA256SUMS.txt)
           for asset in "${assets[@]}"; do
             test -s "$asset"
           done
@@ -157,5 +174,5 @@ jobs:
             gh release create "$RELEASE_TAG" "${assets[@]}" \
               --verify-tag --title "$RELEASE_TAG" --generate-notes --draft
           fi
-          # Only publish after all three assets have been uploaded successfully.
+          # Only publish after all five assets have been uploaded successfully.
           gh release edit "$RELEASE_TAG" --draft=false
